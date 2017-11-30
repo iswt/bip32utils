@@ -22,8 +22,12 @@ CURVE_GEN       = ecdsa.ecdsa.generator_secp256k1
 CURVE_ORDER     = CURVE_GEN.order()
 FIELD_ORDER     = SECP256k1.curve.p()
 INFINITY        = ecdsa.ellipticcurve.INFINITY
-EX_MAIN_PRIVATE = '0488ade4'.decode('hex') # Version string for mainnet extended private keys
-EX_MAIN_PUBLIC  = '0488b21e'.decode('hex') # Version string for mainnet extended public keys
+EX_MAIN_PRIVATE = '02fac398'.decode('hex') # Version string for mainnet extended private keys
+EX_MAIN_PUBLIC  = '02facafd'.decode('hex') # Version string for mainnet extended public keys
+#https://github.com/trezor/trezor-core/blob/master/src/apps/common/coins.py#L166
+DOGE_PREFIX = '\x1e'
+#https://github.com/libbitcoin/libbitcoin/wiki/Altcoin-Version-Mappings#bip44-altcoin-version-mapping-table
+DOGE_WIF_PREFIX = '\x9e'
 
 class BIP32Key(object):
 
@@ -60,9 +64,9 @@ class BIP32Key(object):
         # Verify address version/type
         version = raw[:4]
         if version == EX_MAIN_PRIVATE:
-            keytype = 'xprv'
+            keytype = 'dgpv'
         elif version == EX_MAIN_PUBLIC:
-            keytype = 'xpub'
+            keytype = 'dgub'
         else:
             raise ValueError("unknown extended key version")
 
@@ -74,7 +78,7 @@ class BIP32Key(object):
         secret = raw[45:78]
 
         # Extract private key or public key point
-        if keytype == 'xprv':
+        if keytype == 'dgpv':
             secret = secret[1:]
         else:
             # Recover public curve point from compressed key
@@ -87,7 +91,7 @@ class BIP32Key(object):
             point = ecdsa.ellipticcurve.Point(SECP256k1.curve, x, y)
             secret = ecdsa.VerifyingKey.from_public_point(point, curve=SECP256k1)
 
-        is_pubkey = (keytype == 'xpub')
+        is_pubkey = (keytype == 'dgub')
         key = BIP32Key(secret=secret, chain=chain, depth=depth, index=child, fpr=fpr, public=is_pubkey)
         if not is_pubkey and public:
             key = key.SetPublic()
@@ -268,7 +272,7 @@ class BIP32Key(object):
 
     def Address(self):
         "Return compressed public key address"
-        vh160 = '\x00'+self.Identifier()
+        vh160 = DOGE_PREFIX + self.Identifier()
         return Base58.check_encode(vh160)
 
 
@@ -276,7 +280,7 @@ class BIP32Key(object):
         "Returns private key encoded for wallet import"
         if self.public:
             raise Exception("Publicly derived deterministic keys have no private half")
-        raw = '\x80' + self.k.to_string() + '\x01' # Always compressed
+        raw = DOGE_WIF_PREFIX + self.k.to_string() + '\x01' # Always compressed
         return Base58.check_encode(raw)
 
 
@@ -292,7 +296,7 @@ class BIP32Key(object):
         if self.public is True or private is False:
             data = self.PublicKey()
         else:
-            data = '\x00' + self.PrivateKey()
+            data = DOGE_PREFIX + self.PrivateKey()
         raw = version+depth+fpr+child+chain+data
         if not encoded:
             return raw
